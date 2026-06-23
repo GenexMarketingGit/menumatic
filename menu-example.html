@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RMenu format example</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            padding: 20px;
+        }
+
+        .menu-container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .menu-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 24px;
+            margin-top: 20px;
+        }
+
+        .menu-item {
+            padding: 24px;
+        }
+
+        .item-name {
+            margin-bottom: 8px;
+        }
+
+        .item-price {
+            margin-bottom: 12px;
+        }
+
+        .item-description {
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 10px;
+        }
+
+        .menu-subtitle {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 768px) {
+            .menu-grid {
+                grid-template-columns: 1fr;
+                gap: 16px;
+            }
+            
+            .menu-item {
+                padding: 20px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            body {
+                padding: 15px;
+            }
+            
+            .menu-item {
+                padding: 16px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="menu-container">
+        <h2>Section Title</h2>
+        <p class="menu-subtitle">Delicious dishes made with love</p>
+        
+        <div class="menu-grid">
+            <div class="menu-item">
+                <div class="item-name">Margherita Pizza</div>
+                <div class="item-price">$14.99</div>
+                <div class="item-description">Fresh mozzarella, basil, and our signature tomato sauce on a crispy thin crust. A classic that never goes out of style.</div>
+            </div>
+
+            <div class="menu-item">
+                <div class="item-name">Grilled Salmon</div>
+                <div class="item-price">$22.50</div>
+                <div class="item-description">Atlantic salmon grilled to perfection, served with seasonal vegetables and lemon herb butter sauce.</div>
+            </div>
+
+            <div class="menu-item">
+                <div class="item-name">Caesar Salad</div>
+                <div class="item-price">$9.75</div>
+                <div class="item-description">Crisp romaine lettuce, parmesan cheese, croutons, and our house-made Caesar dressing.</div>
+            </div>
+
+            <div class="menu-item">
+                <div class="item-name">Beef Tenderloin</div>
+                <div class="item-price">$28.00</div>
+                <div class="item-description">8oz prime beef tenderloin cooked to your liking, served with garlic mashed potatoes and red wine reduction.</div>
+            </div>
+
+            <div class="menu-item">
+                <div class="item-name">Chicken Alfredo</div>
+                <div class="item-price">$16.25</div>
+                <div class="item-description">Tender grilled chicken breast over fettuccine pasta with our creamy alfredo sauce and fresh parmesan.</div>
+            </div>
+
+            <div class="menu-item">
+                <div class="item-name">Chocolate Lava Cake</div>
+                <div class="item-price">$7.50</div>
+                <div class="item-description">Warm chocolate cake with a molten chocolate center, served with vanilla ice cream and fresh berries.</div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
