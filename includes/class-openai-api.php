@@ -1775,6 +1775,30 @@ try {
         return '';
     }
 
+    /**
+     * Render short text badges (e.g. "V", "GFP") shown beside the item name.
+     * Accepts a comma-separated string or an array of labels.
+     */
+    private function render_item_badges_html($item) {
+        $badges = $item['badges'] ?? array();
+        if (is_string($badges)) {
+            $badges = explode(',', $badges);
+        }
+        if (!is_array($badges)) {
+            return '';
+        }
+
+        $html = '';
+        foreach ($badges as $badge) {
+            $badge = trim((string) $badge);
+            if ($badge !== '') {
+                $html .= ' <span class="dietary-indicator">' . esc_html($badge) . '</span>';
+            }
+        }
+
+        return $html;
+    }
+
     private function build_html_from_structured_data($data) {
         $html = '<div class="menu-container">';
         
@@ -1784,7 +1808,12 @@ try {
             foreach ($data['content'] as $content) {
                 if ($content['type'] === 'section') {
                     $section_title = esc_html($content['title'] ?? 'Menu Section');
+                    $section_subtitle = esc_html(trim((string) ($content['subtitle'] ?? '')));
+                    $html .= '<section class="menu-section">';
                     $html .= '<h2 class="menu-section-title">' . $section_title . '</h2>';
+                    if ($section_subtitle !== '') {
+                        $html .= '<p class="menu-subtitle">' . $section_subtitle . '</p>';
+                    }
 
                     if (isset($content['items']) && is_array($content['items']) && !empty($content['items'])) {
                         $html .= '<div class="menu-grid">';
@@ -1813,7 +1842,7 @@ try {
                                 $html .= '<div class="menu-item-content">';
                             }
                             
-                            $html .= '<div class="item-name">' . $item_name . '</div>';
+                            $html .= '<div class="item-name">' . $item_name . $this->render_item_badges_html($item) . '</div>';
                             $html .= $this->render_item_price_html($item);
                             if (!empty($item_description)) {
                                 $html .= '<div class="item-description">' . $item_description . '</div>';
@@ -1831,24 +1860,27 @@ try {
                                 }
                                 $html .= '</div>';
                             }
-                            
+
                             // Close content wrapper for items with images
                             if ($has_image) {
                                 $html .= '</div>'; // .menu-item-content
                             }
-                            
+
                             $html .= '</div>'; // .menu-item
                         }
                         $html .= '</div>'; // .menu-grid
                     }
+                    $html .= '</section>'; // .menu-section
                 } elseif ($content['type'] === 'other_content') {
                     // Inline other content - display in its correct position
                     $content_type = esc_html($content['content_type'] ?? 'other');
                     $content_text = esc_html($content['content'] ?? '');
-                    
+
                     if (!empty($content_text)) {
-                        // Check if this looks like a title/header
-                        if ($this->looks_like_title($content_text)) {
+                        if ($content_type === 'footnote') {
+                            $html .= '<p class="menu-footnote">' . $content_text . '</p>';
+                        } elseif ($this->looks_like_title($content_text)) {
+                            // Looks like a title/header
                             $html .= '<h4 class="menu-other-title">' . $content_text . '</h4>';
                         } else {
                             // Check if this contains price-like information
@@ -1878,12 +1910,28 @@ try {
                 }
             }
             
+            // Footnotes always render last, as plain notes below the menu
+            $sidebar_rows = array();
+            $footnotes_html = '';
+            if (isset($data['other_content']) && is_array($data['other_content'])) {
+                foreach ($data['other_content'] as $content_item) {
+                    if (($content_item['type'] ?? '') === 'footnote') {
+                        $footnote_text = esc_html($content_item['content'] ?? '');
+                        if ($footnote_text !== '') {
+                            $footnotes_html .= '<p class="menu-footnote">' . $footnote_text . '</p>';
+                        }
+                    } else {
+                        $sidebar_rows[] = $content_item;
+                    }
+                }
+            }
+
             // Process remaining sidebar content if any
-            if (isset($data['other_content']) && is_array($data['other_content']) && !empty($data['other_content'])) {
+            if (!empty($sidebar_rows)) {
                 $html .= '<hr class="menu-separator">';
                 $in_grid = false;
-                
-                foreach ($data['other_content'] as $content_item) {
+
+                foreach ($sidebar_rows as $content_item) {
                     $content_type = esc_html($content_item['type'] ?? 'other');
                     $content_text = esc_html($content_item['content'] ?? '');
                     
@@ -1937,6 +1985,8 @@ try {
                     $html .= '</div>'; // .menu-grid
                 }
             }
+
+            $html .= $footnotes_html;
         } else {
             // Legacy structure - fall back to old behavior
             if (!isset($data['sections']) || !is_array($data['sections'])) {

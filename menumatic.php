@@ -3,7 +3,7 @@
  * Plugin Name: MenuMatic
  * Plugin URI: https://github.com/lancesmith/menumatic
  * Description: Transform menu photos into beautiful, responsive HTML menus using OpenAI GPT-5.4 vision AI.
- * Version: 1.0.0
+ * Version: 1.0.1
  * Author: Lance Smith
  * Author URI: https://lancesmith.cc
  * License: GPL v2 or later
@@ -23,7 +23,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Define plugin constants
-define('MENUMATIC_VERSION', '1.0.0');
+define('MENUMATIC_VERSION', '1.0.1');
 define('MENUMATIC_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('MENUMATIC_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('MENUMATIC_PLUGIN_FILE', __FILE__);
@@ -390,10 +390,153 @@ class MenuMatic {
         if (!$menu) {
             wp_die(__('Menu not found', 'menumatic'));
         }
-        
+
+        // Menus entered as raw HTML have no structured items yet; rebuild them
+        // from the rendered HTML so the editor shows the real menu.
+        $menu->menu_data = wp_json_encode($this->get_editable_menu_data($menu));
+
         include_once MENUMATIC_PLUGIN_DIR . 'includes/admin/edit-json.php';
     }
-    
+
+    /**
+     * Return a menu's structured data, falling back to parsing its HTML when
+     * the stored JSON has no sections (e.g. menus entered as raw HTML).
+     */
+    public function get_editable_menu_data($menu) {
+        $menu_data = $this->decode_menu_json_data($menu->menu_data ?? '');
+        if (!empty($this->extract_menu_sections($menu_data))) {
+            return $menu_data;
+        }
+
+        $parsed = $this->parse_menu_html_to_data($menu->processed_html ?? '');
+        return !empty($parsed['content']) ? $parsed : $menu_data;
+    }
+
+    /**
+     * Parse rendered menu HTML (menu-section / menu-item markup) back into the
+     * structured content format used by the editor and HTML builder.
+     */
+    public function parse_menu_html_to_data($html) {
+        $data = array('content' => array(), 'other_content' => array(), 'sections' => array());
+        if (!is_string($html) || trim($html) === '' || !class_exists('DOMDocument')) {
+            return $data;
+        }
+
+        $dom = new DOMDocument();
+        $previous = libxml_use_internal_errors(true);
+        $dom->loadHTML('<?xml encoding="utf-8"?><div>' . $html . '</div>');
+        libxml_clear_errors();
+        libxml_use_internal_errors($previous);
+
+        $xpath = new DOMXPath($dom);
+        $has_class = function ($class) {
+            return "contains(concat(' ', normalize-space(@class), ' '), ' $class ')";
+        };
+        $text = function ($node) {
+            return $node ? trim(preg_replace('/\s+/u', ' ', $node->textContent)) : '';
+        };
+        $first = function ($query, $context) use ($xpath) {
+            $nodes = $xpath->query($query, $context);
+            return ($nodes && $nodes->length) ? $nodes->item(0) : null;
+        };
+
+        $nodes = $xpath->query(
+            '//h2 | //p[' . $has_class('menu-subtitle') . '] | //div[' . $has_class('menu-item') . '] | //p[' . $has_class('menu-footnote') . ']'
+        );
+
+        $section_index = -1;
+        foreach ($nodes as $node) {
+            $class = ' ' . $node->getAttribute('class') . ' ';
+
+            if ($node->nodeName === 'h2') {
+                $data['content'][] = array('type' => 'section', 'title' => $text($node), 'items' => array());
+                $section_index = count($data['content']) - 1;
+                continue;
+            }
+
+            if (strpos($class, ' menu-footnote ') !== false) {
+                $data['other_content'][] = array('type' => 'footnote', 'content' => $text($node));
+                continue;
+            }
+
+            if ($section_index < 0) {
+                $data['content'][] = array('type' => 'section', 'title' => __('Menu', 'menumatic'), 'items' => array());
+                $section_index = count($data['content']) - 1;
+            }
+
+            if (strpos($class, ' menu-subtitle ') !== false) {
+                $data['content'][$section_index]['subtitle'] = $text($node);
+                continue;
+            }
+
+            // Menu item: badges are text spans inside the name element
+            $name_node = $first('.//*[' . $has_class('item-name') . ']', $node);
+            $badges = array();
+            if ($name_node) {
+                $name_node = $name_node->cloneNode(true);
+                foreach (iterator_to_array($name_node->getElementsByTagName('span')) as $span) {
+                    $badge = $text($span);
+                    if ($badge !== '') {
+                        $badges[] = $badge;
+                    }
+                    $span->parentNode->removeChild($span);
+                }
+            }
+
+            $item = array(
+                'name' => $text($name_node),
+                'price' => '',
+                'description' => $text($first('.//*[' . $has_class('item-description') . ']', $node)),
+            );
+
+            $price_options = array();
+            foreach ($xpath->query('.//*[' . $has_class('price-option') . ']', $node) as $option) {
+                $price_options[] = array(
+                    'label' => $text($first('.//*[' . $has_class('price-option-label') . ']', $option)),
+                    'price' => $text($first('.//*[' . $has_class('price-option-value') . ']', $option)),
+                );
+            }
+            if (!empty($price_options)) {
+                $item['price_options'] = $price_options;
+            } else {
+                $item['price'] = $text($first('.//*[' . $has_class('item-price') . ']', $node));
+            }
+
+            $additional_info = $text($first('.//*[' . $has_class('item-additional-info') . ']', $node));
+            if ($additional_info !== '') {
+                $item['additional_info'] = $additional_info;
+            }
+            if (!empty($badges)) {
+                $item['badges'] = implode(', ', $badges);
+            }
+
+            $dietary = array();
+            foreach ($xpath->query('.//*[' . $has_class('dietary-info') . ']/span', $node) as $span) {
+                if (preg_match('/\bdietary-(?!indicator\b)([a-z-]+)/', $span->getAttribute('class'), $match)) {
+                    $dietary[] = $match[1];
+                }
+            }
+            if (!empty($dietary)) {
+                $item['dietary_indicators'] = $dietary;
+            }
+
+            $image = $first('.//img', $node);
+            if ($image && $image->getAttribute('src')) {
+                $item['image'] = $image->getAttribute('src');
+            }
+
+            if ($item['name'] !== '') {
+                $data['content'][$section_index]['items'][] = $item;
+            }
+        }
+
+        foreach ($data['content'] as $section) {
+            $data['sections'][] = array('title' => $section['title'], 'items' => $section['items']);
+        }
+
+        return $data;
+    }
+
     /**
      * Include required files
      */
@@ -3424,8 +3567,8 @@ class MenuMatic {
             wp_send_json_error(__('Menu not found.', 'menumatic'));
         }
         
-        // Parse JSON data
-        $menu_data = json_decode($menu->menu_data ?: '{}', true);
+        // Parse JSON data (rebuilt from HTML for menus entered as raw HTML)
+        $menu_data = $this->get_editable_menu_data($menu);
         if (!$menu_data) {
             wp_send_json_error(__('Invalid menu data format.', 'menumatic'));
         }

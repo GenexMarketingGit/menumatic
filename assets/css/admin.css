@@ -727,6 +727,18 @@
     font-style: italic;
 }
 
+.section-subtitle {
+    font-style: italic;
+    margin: -4px 0 12px;
+}
+
+.item-badges {
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    margin-bottom: 8px;
+}
+
 .item-name {
     font-size: 16px;
     font-weight: 600;

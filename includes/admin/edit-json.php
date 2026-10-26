@@ -75,6 +75,7 @@ if (isset($menu_data['content']) && is_array($menu_data['content'])) {
                                     <span class="dashicons dashicons-menu-alt"></span>
                                 </div>
                                 <h2 class="editable section-title" contenteditable="true" data-field="title"><?php echo esc_html($content['title'] ?? 'Menu Section'); ?></h2>
+                                <p class="editable section-subtitle" contenteditable="true" data-field="subtitle" placeholder="<?php esc_attr_e('Section note (optional)', 'menumatic'); ?>"><?php echo esc_html($content['subtitle'] ?? ''); ?></p>
                                 
                                 <div class="section-controls">
                                     <button type="button" class="button button-small add-item"><?php _e('Add Item', 'menumatic'); ?></button>
@@ -113,6 +114,8 @@ if (isset($menu_data['content']) && is_array($menu_data['content'])) {
                                                 </div>
                                                 
                                                 <div class="item-name editable" contenteditable="true" data-field="name" placeholder="<?php _e('Item name', 'menumatic'); ?>"><?php echo esc_html($item['name'] ?? ''); ?></div>
+                                                <?php $item_badges = is_array($item['badges'] ?? null) ? implode(', ', $item['badges']) : ($item['badges'] ?? ''); ?>
+                                                <div class="item-badges editable" contenteditable="true" data-field="badges" placeholder="<?php esc_attr_e('Badges, e.g. V, GFP (optional)', 'menumatic'); ?>"><?php echo esc_html($item_badges); ?></div>
                                                 <div class="item-price editable" contenteditable="true" data-field="price" placeholder="<?php _e('Price', 'menumatic'); ?>"><?php echo esc_html($item['price'] ?? ''); ?></div>
                                                 <?php $item_price_options = (!empty($item['price_options']) && is_array($item['price_options'])) ? $item['price_options'] : []; ?>
                                                 <div class="item-price-options-editor">
@@ -191,6 +194,7 @@ if (isset($menu_data['content']) && is_array($menu_data['content'])) {
                                     <option value="contact" <?php selected($content['type'] ?? '', 'contact'); ?>><?php _e('Contact', 'menumatic'); ?></option>
                                     <option value="special_offer" <?php selected($content['type'] ?? '', 'special_offer'); ?>><?php _e('Special Offer', 'menumatic'); ?></option>
                                     <option value="other" <?php selected($content['type'] ?? '', 'other'); ?>><?php _e('Other', 'menumatic'); ?></option>
+                                    <option value="footnote" <?php selected($content['type'] ?? '', 'footnote'); ?>><?php _e('Footnote (below menu)', 'menumatic'); ?></option>
                                 </select>
                                 <textarea class="content-text editable" data-field="content" placeholder="<?php _e('Content text', 'menumatic'); ?>"><?php echo esc_textarea($content['content'] ?? ''); ?></textarea>
                                 <button type="button" class="button button-small remove-other-content"><?php _e('Remove', 'menumatic'); ?></button>
@@ -207,6 +211,7 @@ if (isset($menu_data['content']) && is_array($menu_data['content'])) {
                         <li><?php _e('Use "Add Item" to add menu items to a section', 'menumatic'); ?></li>
                         <li><?php _e('Use "Add Section" to create new menu categories', 'menumatic'); ?></li>
                         <li><?php _e('Check dietary indicators as needed', 'menumatic'); ?></li>
+                        <li><?php _e('Use "Footnote" in Other Content for notes shown under the menu', 'menumatic'); ?></li>
                         <li><?php _e('Save changes before leaving the page', 'menumatic'); ?></li>
                     </ul>
                 </div>
@@ -280,6 +285,11 @@ jQuery(document).ready(function($) {
                         title: sectionTitle,
                         items: []
                     };
+
+                    const sectionSubtitle = safeExtractText($element.find('.section-subtitle'));
+                    if (sectionSubtitle) {
+                        section.subtitle = sectionSubtitle;
+                    }
                 
                     $element.find('.menu-item').each(function() {
                         const $item = $(this);
@@ -315,6 +325,12 @@ jQuery(document).ready(function($) {
                             item.additional_info = additionalInfo;
                         }
                         
+                        // Badges (short labels such as V or GFP)
+                        const badges = safeExtractText($item.find('[data-field="badges"]'));
+                        if (badges) {
+                            item.badges = badges;
+                        }
+
                         // Item image
                         const $itemImage = $item.find('.item-image');
                         if ($itemImage.length > 0 && $itemImage.attr('src')) {
@@ -402,6 +418,7 @@ jQuery(document).ready(function($) {
                     <span class="dashicons dashicons-menu-alt"></span>
                 </div>
                 <h2 class="editable section-title" contenteditable="true" data-field="title">New Section</h2>
+                <p class="editable section-subtitle" contenteditable="true" data-field="subtitle" placeholder="<?php esc_attr_e('Section note (optional)', 'menumatic'); ?>"></p>
                 
                 <div class="section-controls">
                     <button type="button" class="button button-small add-item"><?php _e('Add Item', 'menumatic'); ?></button>
@@ -448,6 +465,7 @@ jQuery(document).ready(function($) {
                 </div>
                 
                 <div class="item-name editable" contenteditable="true" data-field="name" placeholder="<?php _e('Item name', 'menumatic'); ?>">New Item</div>
+                <div class="item-badges editable" contenteditable="true" data-field="badges" placeholder="<?php esc_attr_e('Badges, e.g. V, GFP (optional)', 'menumatic'); ?>"></div>
                 <div class="item-price editable" contenteditable="true" data-field="price" placeholder="<?php _e('Price', 'menumatic'); ?>">$0.00</div>
                 <div class="item-price-options-editor">
                     <div class="price-options-list"></div>
@@ -539,6 +557,7 @@ jQuery(document).ready(function($) {
                     <option value="contact"><?php _e('Contact', 'menumatic'); ?></option>
                     <option value="special_offer"><?php _e('Special Offer', 'menumatic'); ?></option>
                     <option value="other"><?php _e('Other', 'menumatic'); ?></option>
+                    <option value="footnote"><?php _e('Footnote (below menu)', 'menumatic'); ?></option>
                 </select>
                 <textarea class="content-text editable" data-field="content" placeholder="<?php _e('Content text', 'menumatic'); ?>"></textarea>
                 <button type="button" class="button button-small remove-other-content"><?php _e('Remove', 'menumatic'); ?></button>
@@ -976,6 +995,7 @@ jQuery(document).ready(function($) {
                         <option value="contact" ${contentType === 'contact' ? 'selected' : ''}>Contact</option>
                         <option value="special_offer" ${contentType === 'special_offer' ? 'selected' : ''}>Special Offer</option>
                         <option value="other" ${contentType === 'other' ? 'selected' : ''}>Other</option>
+                        <option value="footnote" ${contentType === 'footnote' ? 'selected' : ''}>Footnote (below menu)</option>
                     </select>
                     <textarea class="content-text editable" data-field="content" placeholder="Content text">${contentText}</textarea>
                     <button type="button" class="button button-small remove-other-content">Remove</button>
@@ -1023,6 +1043,7 @@ jQuery(document).ready(function($) {
                             <option value="contact" ${contentType === 'contact' ? 'selected' : ''}>Contact</option>
                             <option value="special_offer" ${contentType === 'special_offer' ? 'selected' : ''}>Special Offer</option>
                             <option value="other" ${contentType === 'other' ? 'selected' : ''}>Other</option>
+                        <option value="footnote" ${contentType === 'footnote' ? 'selected' : ''}>Footnote (below menu)</option>
                         </select>
                         <textarea class="content-text editable" data-field="content" placeholder="Content text">${contentText}</textarea>
                         <button type="button" class="button button-small remove-other-content">Remove</button>
